@@ -4,7 +4,7 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 console.log("DB:", process.env.DB_NAME);
-console.log("✅ Connected DB User:", process.env.DB_USER);
+console.log("Connected DB User:", process.env.DB_USER);
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
