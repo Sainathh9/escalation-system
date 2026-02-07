@@ -2,11 +2,13 @@ import express from 'express';
 import dotenv from 'dotenv';
 import ticketRoutes from './routes/ticketRoutes.js';
 import cors from 'cors';
+import checkEscalation from './jobs/escalationJob.js';
 
 // 1. Initialize dotenv at the very top
 dotenv.config();
 
 const app = express();
+
 
 // 2. Middleware
 app.use(express.json());
