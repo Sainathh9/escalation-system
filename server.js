@@ -1,6 +1,7 @@
 import express from 'express';
 import dotenv from 'dotenv';
 import ticketRoutes from './routes/ticketRoutes.js';
+import authRoutes from './routes/authRoutes.js';
 import cors from 'cors';
 import checkEscalation from './jobs/escalationJob.js';
 
@@ -23,6 +24,7 @@ app.get("/",(req,res)=>{
 
 // 3. Routes
 app.use('/api/tickets', ticketRoutes);
+app.use('/api/auth',authRoutes);
 
 
 // 4. Use the Port from .env, or fallback to 3000 if it's missing
