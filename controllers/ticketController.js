@@ -2,7 +2,7 @@ import pool from '../config/db.js'; // Note: You must include the .js extension
 
 export const createTicket = async (req, res) => {
   try {
-    const { title, description, severity, category, priority, created_by } =
+    const { title, description, severity, category, priority} =
       req.body;
 
     const status = "Open";
@@ -10,8 +10,8 @@ export const createTicket = async (req, res) => {
 
     const newTicket = await pool.query(
       `INSERT INTO tickets
-      (title, description, severity, category, priority, status, created_by, sla_deadline)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+      (title, description, severity, category, priority,created_by, sla_deadline)
+      VALUES ($1,$2,$3,$4,$5,$6,$7)
       RETURNING *`,
       [
         title,
@@ -19,8 +19,7 @@ export const createTicket = async (req, res) => {
         severity,
         category,
         priority,
-        status,
-        created_by,
+        req.user.id,
         slaDeadline,
       ]
     );
@@ -31,7 +30,7 @@ await pool.query(
   [
     createdTicket.id,
     "CREATED",
-    createdTicket.created_by,
+    req.user.id,
     "Ticket created",
   ]
 );
@@ -79,7 +78,7 @@ export const getAllTickets = async(req,res)=>{
       [
         updatedTicket.id,
         "STATUS_UPDATED",
-        1, // Assuming performed_by is 1 for now; adjust as needed
+        req.user.id, // Assuming performed_by is 1 for now; adjust as needed
         `Status changed to ${status}`
       ]
     )
@@ -97,7 +96,7 @@ export const getAllTickets = async(req,res)=>{
       const {assigned_to} = req.body;
       const assign = await pool.query("UPDATE tickets SET assigned_to=$1 WHERE id=$2 RETURNING *",[assigned_to,id]);
       if(assign.rows.length === 0){
-        res.status(404).json({"error": "Ticket not found"});
+        return res.status(404).json({"error": "Ticket not found"});
       }
       const updatedTicket = assign.rows[0];
       await pool.query(
@@ -105,7 +104,7 @@ export const getAllTickets = async(req,res)=>{
         [
           updatedTicket.id,
           "ASSIGNED",
-          1, // Assuming performed_by is 1 for now; adjust as needed
+          req.user.id, // Assuming performed_by is 1 for now; adjust as needed
           `Ticket assigned to user ID ${assigned_to}`
         ]
       )
@@ -120,11 +119,11 @@ export const getAllTickets = async(req,res)=>{
  export const createComment = async (req,res)=>{
   try{
     const {id} = req.params;
-    const {comment,author_id}=req.body;
+    const {comment}=req.body;
     const newComment = await pool.query(
       "INSERT INTO ticket_comments (ticket_id,author_id,comment) VALUES ($1,$2,$3) RETURNING *",[
         id,
-        author_id,
+        req.user.id,
         comment
       ]
     );

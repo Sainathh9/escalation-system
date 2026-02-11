@@ -6,12 +6,13 @@ import {updateTicket} from '../controllers/ticketController.js';
 import {assignTicket} from '../controllers/ticketController.js';
 import {createComment} from '../controllers/ticketController.js';
 import { getTicketComments } from '../controllers/ticketController.js';
-import { get } from 'node:http';
+import authMiddleWare from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+router.use(authMiddleWare);
 
 // Logic: POST http://localhost:5001/api/tickets/create
-router.post('/', createTicket);
+router.post('/',createTicket);
 router.get('/:id',getTicketById);
 router.get('/',getAllTickets);
 router.put('/:id/status',updateTicket);

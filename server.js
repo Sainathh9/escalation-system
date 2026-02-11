@@ -5,6 +5,7 @@ import authRoutes from './routes/authRoutes.js';
 import cors from 'cors';
 import checkEscalation from './jobs/escalationJob.js';
 
+
 // 1. Initialize dotenv at the very top
 dotenv.config();
 
@@ -12,8 +13,9 @@ const app = express();
 
 
 // 2. Middleware
-app.use(express.json());
 app.use(cors());
+app.use(express.json());
+
 
 
 //server run check
