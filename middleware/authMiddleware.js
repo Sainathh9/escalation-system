@@ -23,4 +23,25 @@ export const authMiddleWare = (req,res,next)=>{
    }
     };
 
-export default authMiddleWare;
+    export const allowRoles = (allowedRoles) => {
+  return (req, res, next) => {
+
+    // Defensive check (in case auth middleware wasn't applied)
+    if (!req.user || !req.user.role) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Check if user's role is allowed
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({
+        error: "Forbidden: You do not have permission to perform this action"
+      });
+    }
+
+    next();
+  };
+};
+
+
+
+
