@@ -1,0 +1,40 @@
+.navbar {
+  height: 60px;
+  background: #020617;
+  border-bottom: 1px solid #1e293b;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+}
+
+.logo {
+  font-weight: 600;
+  font-size: 18px;
+  color: #e2e8f0;
+  cursor: pointer;
+}
+
+.nav-right {
+  display: flex;
+  gap: 20px;
+}
+
+.nav-item {
+  cursor: pointer;
+  color: #94a3b8;
+  transition: color 0.2s;
+}
+
+.nav-item:hover {
+  color: white;
+}
+
+.nav-item.active {
+  color: white;
+  font-weight: 600;
+}
+
+.logout {
+  color: #ef4444;
+}
