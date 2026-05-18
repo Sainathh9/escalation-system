@@ -2,13 +2,13 @@ import pool from "../config/db.js";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 
-export const registerUser = async (req, res) => {
+export const registerUser = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
 
     // basic validation
     if (!name || !email || !password) {
-      return res.status(400).json({ error: "All fields are required" });
+      return res.status(400).json({ success: false, error: "All fields are required" });
     }
 
     // check if user exists
@@ -18,7 +18,7 @@ export const registerUser = async (req, res) => {
     );
 
     if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: "User already exists" });
+      return res.status(400).json({ success: false, error: "User already exists" });
     }
 
     // hash password
@@ -33,22 +33,24 @@ export const registerUser = async (req, res) => {
     );
 
     res.status(201).json({
-      message: "User registered successfully",
-      user: result.rows[0],
+      success: true,
+      data: {
+        message: "User registered successfully",
+        user: result.rows[0],
+      }
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Server error" });
+    next(err);
   }
 };
 
-export const loginUser = async (req, res) => {
+export const loginUser = async (req, res, next) => {
   try {
     const { email, password } = req.body;
 
     // validation
     if (!email || !password) {
-      return res.status(400).json({ error: "Email and password required" });
+      return res.status(400).json({ success: false, error: "Email and password required" });
     }
 
     // find user
@@ -57,7 +59,7 @@ export const loginUser = async (req, res) => {
     ]);
 
     if (userQuery.rows.length === 0) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
     const user = userQuery.rows[0];
@@ -65,27 +67,29 @@ export const loginUser = async (req, res) => {
     // compare password
     const isMatch = await bcrypt.compare(password, user.password_hash);
     if (!isMatch) {
-      return res.status(401).json({ error: "Invalid credentials" });
+      return res.status(401).json({ success: false, error: "Invalid credentials" });
     }
 
     // create token
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET,
+      process.env.JWT_SECRET || "default_secret",
       { expiresIn: "1h" },
     );
 
     res.status(200).json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      },
+      success: true,
+      data: {
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
+      }
     });
   } catch (err) {
-    console.error(err.message);
-    res.status(500).json({ error: "Server error" });
+    next(err);
   }
 };

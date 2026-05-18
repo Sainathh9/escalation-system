@@ -10,11 +10,13 @@ import {authMiddleWare} from '../middleware/authMiddleware.js';
 import {allowRoles} from '../middleware/authMiddleware.js';
 import { getMetrics } from '../controllers/ticketController.js';
 import { getTicketLogs } from '../controllers/ticketController.js';
+import { getUsers } from '../controllers/ticketController.js';
 
 const router = express.Router();
 router.use(authMiddleWare);
 
 // Logic: POST http://localhost:5001/api/tickets/create
+router.get('/users', allowRoles(['Admin','Technician','User']), getUsers);
 router.get('/metrics', allowRoles(['Admin']), getMetrics);
 router.get('/:id/logs',allowRoles(['User','Technician','Admin']),getTicketLogs);
 router.post('/',createTicket); //you dont need role middleware here as all roles are allowed
