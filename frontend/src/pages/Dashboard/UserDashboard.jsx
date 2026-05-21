@@ -1,13 +1,17 @@
 import { useNavigate } from "react-router-dom";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from "../../api/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useSocket } from "../../hooks/useSocket.js";
+import { useSocketEvent } from "../../hooks/useSocketEvent.js";
 import { StatusBadge, PriorityBadge, formatDate } from "../../components/Badges.jsx";
 import { Ticket, AlertCircle, Clock, CheckCircle2 } from "lucide-react";
 
 export default function UserDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { isConnected } = useSocket();
 
   const { data: ticketData, isLoading } = useQuery({
     queryKey: ['user-dashboard-tickets', user.id],

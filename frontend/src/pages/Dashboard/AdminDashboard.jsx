@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/api";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket } from "../../hooks/useSocket.js";
+import { useSocketEvent } from "../../hooks/useSocketEvent.js";
 import { timeAgo } from "../../components/Badges.jsx";
 import {
   Chart as ChartJS,
@@ -36,6 +38,14 @@ ChartJS.register(
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { isConnected } = useSocket();
+
+  // 🔌 Listen to real-time update events and invalidate metrics
+  useSocketEvent('dashboard:metrics-updated', (payload) => {
+    console.log('📊 Admin Dashboard received real-time metrics update:', payload);
+    queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+  });
 
   const { data: metrics, isLoading: loading, isError } = useQuery({
     queryKey: ['dashboard-metrics'],

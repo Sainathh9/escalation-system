@@ -1,13 +1,28 @@
 import { useNavigate } from "react-router-dom";
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { apiFetch } from "../../api/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useSocket } from "../../hooks/useSocket.js";
+import { useSocketEvent } from "../../hooks/useSocketEvent.js";
 import { StatusBadge, PriorityBadge, formatDate } from "../../components/Badges.jsx";
 import { AlertCircle, Clock, CheckCircle2, AlertTriangle, ShieldAlert } from "lucide-react";
 
 export default function TechnicianDashboard() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { isConnected } = useSocket();
+
+  // 🔌 Listen to real-time update events and invalidate technician queries
+  useSocketEvent('dashboard:metrics-updated', (payload) => {
+    console.log('🔧 Technician Dashboard received real-time updates:', payload);
+    queryClient.invalidateQueries({ queryKey: ['tech-dashboard-tickets', user.id] });
+  });
+
+  useSocketEvent('ticket:assigned-direct', (payload) => {
+    console.log('⚡ Direct ticket assignment received on Technician Dashboard:', payload);
+    queryClient.invalidateQueries({ queryKey: ['tech-dashboard-tickets', user.id] });
+  });
 
   const { data: ticketData, isLoading } = useQuery({
     queryKey: ['tech-dashboard-tickets', user.id],

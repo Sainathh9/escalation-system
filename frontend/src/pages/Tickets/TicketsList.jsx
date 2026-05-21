@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useLocation, useNavigate } from "react-router-dom";
 import { apiFetch } from "../../api/api.js";
 import { useAuth } from "../../context/AuthContext.jsx";
+import { useSocket } from "../../hooks/useSocket.js";
+import { useSocketEvent } from "../../hooks/useSocketEvent.js";
 import {
   StatusBadge,
   PriorityBadge,
@@ -28,6 +30,19 @@ export default function TicketsList() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { isConnected } = useSocket();
+
+  // 🔌 Listen to real-time update events and invalidate the tickets query lists
+  useSocketEvent('dashboard:metrics-updated', (payload) => {
+    console.log('📋 Ticket list received real-time update:', payload);
+    queryClient.invalidateQueries({ queryKey: ['tickets'] });
+  });
+
+  useSocketEvent('ticket:assigned-direct', (payload) => {
+    console.log('⚡ Direct ticket assignment received on TicketsList:', payload);
+    queryClient.invalidateQueries({ queryKey: ['tickets'] });
+  });
 
   const queryParams = new URLSearchParams(location.search);
   const initialAssigned = queryParams.get("assigned_to") || queryParams.get("assigned") || "";

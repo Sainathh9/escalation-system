@@ -1,8 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { apiFetch } from "../api/api";
 import { useAuth } from "../context/AuthContext";
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useSocket } from '../hooks/useSocket.js';
+import { useSocketEvent } from '../hooks/useSocketEvent.js';
+import { joinTicketRoom, leaveTicketRoom } from '../services/socketService.js';
 import {
   StatusBadge,
   SeverityBadge,
@@ -29,6 +32,49 @@ export default function TicketDetail() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const { isConnected } = useSocket();
+
+  // 🔌 Establish room subscription for this specific ticket
+  useEffect(() => {
+    if (!id) return;
+    joinTicketRoom(id);
+    return () => {
+      leaveTicketRoom(id);
+    };
+  }, [id, isConnected]);
+
+  // 🔌 Re-join room on reconnect
+  useSocketEvent('connect', () => {
+    if (id) joinTicketRoom(id);
+  });
+
+  // 🔌 Real-time listeners
+  useSocketEvent('ticket:status-updated', (payload) => {
+    if (payload.ticketId === parseInt(id)) {
+      queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-logs', id] });
+    }
+  });
+
+  useSocketEvent('ticket:assigned', (payload) => {
+    if (payload.ticketId === parseInt(id)) {
+      queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-logs', id] });
+    }
+  });
+
+  useSocketEvent('comment:added', (payload) => {
+    if (payload.ticketId === parseInt(id)) {
+      queryClient.invalidateQueries({ queryKey: ['ticket-comments', id] });
+    }
+  });
+
+  useSocketEvent('ticket:escalated', (payload) => {
+    if (payload.ticketId === parseInt(id)) {
+      queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-logs', id] });
+    }
+  });
 
   const [newComment, setNewComment] = useState("");
   const [posting, setPosting] = useState(false);
@@ -95,7 +141,7 @@ export default function TicketDetail() {
       body: JSON.stringify({ comment: newComment }),
     });
     if (!res.error) {
-      queryClient.invalidateQueries(['ticket-comments', id]);
+      queryClient.invalidateQueries({ queryKey: ['ticket-comments', id] });
       setNewComment("");
       // Success toast alternative
       console.log("Comment added successfully");
@@ -121,8 +167,8 @@ export default function TicketDetail() {
       body: JSON.stringify({ status: newStatus }),
     });
     if (!res.error) {
-      queryClient.invalidateQueries(['ticket', id]);
-      queryClient.invalidateQueries(['ticket-logs', id]);
+      queryClient.invalidateQueries({ queryKey: ['ticket', id] });
+      queryClient.invalidateQueries({ queryKey: ['ticket-logs', id] });
       // Success toast alternative
       console.log("Status updated");
     } else {
@@ -223,7 +269,7 @@ export default function TicketDetail() {
   return (
     <div className="detail-page">
       {/* Breadcrumb / Back */}
-      <div className="detail-breadcrumb">
+      <div className="detail-breadcrumb" style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '8px' }}>
         <button
           className="btn btn-ghost"
           onClick={() => navigate("/tickets")}
@@ -234,7 +280,10 @@ export default function TicketDetail() {
         </button>
         <span className="breadcrumb-sep">/</span>
         <span className="breadcrumb-current">INC-{ticket.id}</span>
+
+
       </div>
+
 
       {/* Two-column layout */}
       <div className="detail-layout">

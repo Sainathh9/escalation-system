@@ -1,10 +1,12 @@
 import express from 'express';
 import dotenv from 'dotenv';
+import http from 'http';
+import { initSocket } from './services/socketService.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
 import cors from 'cors';
-import checkEscalation from './jobs/escalationJob.js';
+import './workers/slaWorker.js'; // BullMQ SLA escalation worker (side-effect: registers & starts)
 import errorHandler from './middleware/errorHandler.js';
 import pool from './config/db.js';
 
@@ -43,9 +45,13 @@ app.use('/api/notifications', notificationRoutes);
 // 4. Centralized Error Handler (must be AFTER routes)
 app.use(errorHandler);
 
+// 5. Wrap with HTTP server and init sockets
+const server = http.createServer(app);
+initSocket(server);
+
 // 6. Start server
 const PORT = process.env.PORT || 5001;
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Server running on http://localhost:${PORT}`);
 });

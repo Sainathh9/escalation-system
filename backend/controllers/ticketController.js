@@ -6,6 +6,8 @@ import {
   notifyTicketResolved,
   notifyNewComment,
 } from "../services/notificationService.js";
+import slaQueue from "../queues/slaQueue.js";
+import { emitToTicket, emitToRole, emitToUser } from "../services/socketService.js";
 
 export const createTicket = async (req, res, next) => {
   try {
@@ -27,15 +29,22 @@ export const createTicket = async (req, res, next) => {
       errors.push("Priority must be an integer between 1 and 5");
     }
 
-    if (!category || typeof category !== "string" || category.trim().length === 0) {
+    if (
+      !category ||
+      typeof category !== "string" ||
+      category.trim().length === 0
+    ) {
       errors.push("Category is required and must be a non-empty string");
     }
 
     if (errors.length > 0) {
-      return res.status(400).json({ error: "Validation Failed", details: errors });
+      return res
+        .status(400)
+        .json({ error: "Validation Failed", details: errors });
     }
 
-    const slaDeadline = new Date(Date.now() + 4 * 60 * 60 * 1000); // Default placeholder
+    const slaDeadline = calculateSLA(severity,0);
+
 
     const newTicket = await pool.query(
       `INSERT INTO tickets
@@ -49,7 +58,7 @@ export const createTicket = async (req, res, next) => {
         category.trim(),
         priority,
         req.user.id,
-        calculateSLA(severity, 0),
+        slaDeadline,
       ],
     );
     const createdTicket = newTicket.rows[0];
@@ -59,8 +68,24 @@ export const createTicket = async (req, res, next) => {
       [createdTicket.id, "CREATED", req.user.id, "Ticket created"],
     );
 
+    const delay = Math.max(0,slaDeadline-Date.now());
+    await slaQueue.add(
+      "sla-breach-check",
+      {
+        ticketId: createdTicket.id,
+      },
+      {
+        delay: delay,
+      },
+    );
     // 🔔 Notify all admins of new ticket
-    notifyTicketCreated(createdTicket, req.user.name || 'A user').catch(() => {});
+    notifyTicketCreated(createdTicket, req.user.name || "A user").catch(
+      () => {},
+    );
+
+    // 🔌 Real-time Socket.IO emission
+    emitToRole("Admin", "dashboard:metrics-updated", { action: "CREATED", ticketId: createdTicket.id });
+    emitToRole("Technician", "dashboard:metrics-updated", { action: "CREATED", ticketId: createdTicket.id });
 
     res.status(201).json({ success: true, data: createdTicket });
   } catch (err) {
@@ -71,7 +96,14 @@ export const createTicket = async (req, res, next) => {
 export const getAllTickets = async (req, res, next) => {
   try {
     const {
-      status, severity, priority, search, sort, order, page = 1, limit = 10,
+      status,
+      severity,
+      priority,
+      search,
+      sort,
+      order,
+      page = 1,
+      limit = 10,
     } = req.query;
 
     let whereClause = "WHERE 1=1";
@@ -141,7 +173,11 @@ export const getAllTickets = async (req, res, next) => {
       LIMIT $${index} OFFSET $${index + 1}
     `;
 
-    const dataResult = await pool.query(dataQuery, [...values, limitNum, offset]);
+    const dataResult = await pool.query(dataQuery, [
+      ...values,
+      limitNum,
+      offset,
+    ]);
 
     res.status(200).json({
       success: true,
@@ -171,11 +207,13 @@ export const getTicketById = async (req, res, next) => {
        LEFT JOIN users assignee ON t.assigned_to = assignee.id
        LEFT JOIN users creator ON t.created_by = creator.id
        WHERE t.id = $1`,
-      [req.params.id]
+      [req.params.id],
     );
 
     if (ticket.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Ticket not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Ticket not found" });
     }
 
     const obtainedTicket = ticket.rows[0];
@@ -184,12 +222,15 @@ export const getTicketById = async (req, res, next) => {
     const isAdmin = req.user.role === "Admin";
 
     if (!isOwner && !isAssignee && !isAdmin) {
-      return res.status(403).json({ success: false, error: "You dont have the permission to view this ticket" });
+      return res.status(403).json({
+        success: false,
+        error: "You dont have the permission to view this ticket",
+      });
     }
 
     res.status(200).json({
       success: true,
-      data: obtainedTicket
+      data: obtainedTicket,
     });
   } catch (err) {
     next(err);
@@ -202,13 +243,17 @@ export const updateTicket = async (req, res, next) => {
 
     // 1️⃣ Validate status presence
     if (!status) {
-      return res.status(400).json({ success: false, error: "Status is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Status is required" });
     }
 
     // 2️⃣ Validate allowed statuses
     const allowedStatuses = ["Open", "In-Progress", "Resolved", "Closed"];
     if (!allowedStatuses.includes(status)) {
-      return res.status(400).json({ success: false, error: "Invalid status value" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Invalid status value" });
     }
 
     // 3️⃣ Fetch ticket
@@ -218,7 +263,9 @@ export const updateTicket = async (req, res, next) => {
     );
 
     if (ticketQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Ticket not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Ticket not found" });
     }
 
     const ticket = ticketQuery.rows[0];
@@ -282,9 +329,19 @@ export const updateTicket = async (req, res, next) => {
     );
 
     // 🔔 Notify ticket creator when resolved or closed
-    if (status === 'Resolved' || status === 'Closed') {
+    if (status === "Resolved" || status === "Closed") {
       notifyTicketResolved(ticket, status).catch(() => {});
     }
+
+    // 🔌 Real-time Socket.IO emission
+    emitToTicket(updatedTicket.id, "ticket:status-updated", {
+      ticketId: updatedTicket.id,
+      status,
+      performedBy: req.user.id,
+      note: `Status changed from ${ticket.status} to ${status}`
+    });
+    emitToRole("Admin", "dashboard:metrics-updated", { action: "STATUS_UPDATED", ticketId: updatedTicket.id });
+    emitToRole("Technician", "dashboard:metrics-updated", { action: "STATUS_UPDATED", ticketId: updatedTicket.id });
 
     res.status(200).json({ success: true, data: updatedTicket });
   } catch (err) {
@@ -298,7 +355,9 @@ export const assignTicket = async (req, res, next) => {
     const { assigned_to } = req.body;
 
     if (req.user.role !== "Admin") {
-      return res.status(403).json({ success: false, error: "Only Admins can re-assign tickets" });
+      return res
+        .status(403)
+        .json({ success: false, error: "Only Admins can re-assign tickets" });
     }
 
     const userQuery = await pool.query("SELECT * from users WHERE id=$1", [
@@ -306,20 +365,27 @@ export const assignTicket = async (req, res, next) => {
     ]);
 
     if (userQuery.rows.length === 0) {
-      return res.status(400).json({ success: false, error: "Target ID doesn't exist" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Target ID doesn't exist" });
     }
 
     const user = userQuery.rows[0];
     const isTechnician = user.role === "Technician";
     if (!isTechnician) {
-      return res
-        .status(400)
-        .json({ success: false, error: "Assigned user must have Technician role" });
+      return res.status(400).json({
+        success: false,
+        error: "Assigned user must have Technician role",
+      });
     }
 
-    const ticketQuery = await pool.query("SELECT * from tickets where id=$1", [id]);
+    const ticketQuery = await pool.query("SELECT * from tickets where id=$1", [
+      id,
+    ]);
     if (ticketQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Ticket not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Ticket not found" });
     }
 
     const oldAssigneeId = ticketQuery.rows[0].assigned_to;
@@ -337,13 +403,30 @@ export const assignTicket = async (req, res, next) => {
         updatedTicket.id,
         "ASSIGNED",
         req.user.id,
-        `Ticket assignment changed from ${oldAssigneeId || 'Unassigned'} to ${assigned_to}`,
+        `Ticket assignment changed from ${oldAssigneeId || "Unassigned"} to ${assigned_to}`,
       ],
     );
 
     // 🔔 Notify new technician (reassignment if there was a previous assignee)
     const isReassignment = !!oldAssigneeId;
-    notifyTicketAssigned(updatedTicket, assigned_to, isReassignment).catch(() => {});
+    notifyTicketAssigned(updatedTicket, assigned_to, isReassignment).catch(
+      () => {},
+    );
+
+    // 🔌 Real-time Socket.IO emission
+    emitToTicket(updatedTicket.id, "ticket:assigned", {
+      ticketId: updatedTicket.id,
+      assigneeId: assigned_to,
+      oldAssigneeId,
+      note: `Ticket assignment changed from ${oldAssigneeId || "Unassigned"} to ${assigned_to}`
+    });
+    emitToUser(assigned_to, "ticket:assigned-direct", {
+      ticketId: updatedTicket.id,
+      title: updatedTicket.title,
+      isReassignment
+    });
+    emitToRole("Admin", "dashboard:metrics-updated", { action: "ASSIGNED", ticketId: updatedTicket.id });
+    emitToRole("Technician", "dashboard:metrics-updated", { action: "ASSIGNED", ticketId: updatedTicket.id });
 
     res.status(200).json({ success: true, data: updatedTicket });
   } catch (err) {
@@ -356,25 +439,27 @@ export const createComment = async (req, res, next) => {
     const { id } = req.params;
     const { comment } = req.body;
     if (!comment || comment.trim() === "") {
-      return res.status(400).json({ success: false, error: "Comment is required" });
+      return res
+        .status(400)
+        .json({ success: false, error: "Comment is required" });
     }
     const ticketQuery = await pool.query("SELECT * FROM tickets where id=$1", [
       id,
     ]);
     if (ticketQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Ticket doesnt exist" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Ticket doesnt exist" });
     }
     const ticket = ticketQuery.rows[0];
     const isUser = req.user.id === ticket.created_by;
     const isAssigned = req.user.id === ticket.assigned_to;
     const isAdmin = req.user.role === "Admin";
     if (!isUser && !isAssigned && !isAdmin) {
-      return res
-        .status(403)
-        .json({
-          success: false,
-          error: "You are not allowed to create comments on this ticket",
-        });
+      return res.status(403).json({
+        success: false,
+        error: "You are not allowed to create comments on this ticket",
+      });
     }
 
     const newComment = await pool.query(
@@ -383,9 +468,25 @@ export const createComment = async (req, res, next) => {
     );
 
     // 🔔 Notify all ticket participants of the new comment
-    notifyNewComment(ticket, req.user.id, req.user.name || 'Someone').catch(() => {});
+    notifyNewComment(ticket, req.user.id, req.user.name || "Someone").catch(
+      () => {},
+    );
 
-    res.status(201).json({ success: true, data: newComment.rows[0] });
+    const commentData = newComment.rows[0];
+
+    // 🔌 Real-time Socket.IO emission
+    emitToTicket(id, "comment:added", {
+      ticketId: id,
+      comment: {
+        ...commentData,
+        author_name: req.user.name,
+        author_email: req.user.email
+      }
+    });
+    emitToRole("Admin", "dashboard:metrics-updated", { action: "COMMENT_ADDED", ticketId: id });
+    emitToRole("Technician", "dashboard:metrics-updated", { action: "COMMENT_ADDED", ticketId: id });
+
+    res.status(201).json({ success: true, data: commentData });
   } catch (err) {
     next(err);
   }
@@ -400,7 +501,9 @@ export const getTicketComments = async (req, res, next) => {
     );
 
     if (ticketQuery.rows.length === 0) {
-      return res.status(404).json({ success: false, error: "Ticket not found" });
+      return res
+        .status(404)
+        .json({ success: false, error: "Ticket not found" });
     }
 
     const ticket = ticketQuery.rows[0];
@@ -440,23 +543,23 @@ export const getMetrics = async (req, res, next) => {
 
     // Status counts
     const open = await pool.query(
-      "SELECT COUNT(*) FROM tickets WHERE status = 'Open'"
+      "SELECT COUNT(*) FROM tickets WHERE status = 'Open'",
     );
     const inProgress = await pool.query(
-      "SELECT COUNT(*) FROM tickets WHERE status IN ('In Progress','In-Progress')"
+      "SELECT COUNT(*) FROM tickets WHERE status IN ('In Progress','In-Progress')",
     );
     const resolved = await pool.query(
-      "SELECT COUNT(*) FROM tickets WHERE status = 'Resolved'"
+      "SELECT COUNT(*) FROM tickets WHERE status = 'Resolved'",
     );
 
     // Critical severity count
     const critical = await pool.query(
-      "SELECT COUNT(*) FROM tickets WHERE severity = 'Critical'"
+      "SELECT COUNT(*) FROM tickets WHERE severity = 'Critical'",
     );
 
     // Overdue tickets
     const overdue = await pool.query(
-      "SELECT COUNT(*) FROM tickets WHERE sla_deadline < NOW() AND status NOT IN ('Resolved','Closed')"
+      "SELECT COUNT(*) FROM tickets WHERE sla_deadline < NOW() AND status NOT IN ('Resolved','Closed')",
     );
 
     // Average resolution time (in hours) for resolved/closed tickets
@@ -523,7 +626,7 @@ export const getMetrics = async (req, res, next) => {
         severity,
         incidents_over_time: incidentsOverTime.rows,
         recent_activity: recentActivity.rows,
-      }
+      },
     });
   } catch (err) {
     next(err);
@@ -552,7 +655,7 @@ export const getTicketLogs = async (req, res, next) => {
 export const getUsers = async (req, res, next) => {
   try {
     const result = await pool.query(
-      "SELECT id, name, email, role FROM users ORDER BY name ASC"
+      "SELECT id, name, email, role FROM users ORDER BY name ASC",
     );
     res.status(200).json({ success: true, data: result.rows });
   } catch (err) {
