@@ -5,6 +5,7 @@ import TicketsList from "./pages/Tickets/TicketsList.jsx";
 import TicketDetail from "./pages/TicketDetail.jsx";
 import UsersList from "./pages/UsersList.jsx";
 import Settings from "./pages/Settings.jsx";
+import AuditLogPage from "./pages/AuditLogPage.jsx";
 import { ProtectedRoute, RoleRoute } from "./routes/ProtectedRoutes.jsx";
 import MainLayout from "./layouts/MainLayout.jsx";
 import { AuthProvider } from "./context/AuthContext.jsx";
@@ -36,6 +37,7 @@ function App() {
                 <Route element={<RoleRoute allowedRoles={["Admin"]} />}>
                   <Route path="/users" element={<UsersList />} />
                   <Route path="/settings" element={<Settings />} />
+                  <Route path="/admin/audit-logs" element={<AuditLogPage />} />
                 </Route>
               </Route>
             </Route>

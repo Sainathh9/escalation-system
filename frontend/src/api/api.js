@@ -31,9 +31,9 @@ export const apiFetch = async (url, options = {}) => {
     // to shield the frontend UI components from breaking.
     if (data.success && data.data !== undefined) {
       // For endpoints that return pagination metadata at the top level alongside 'data'
-      // Example: { success: true, data: [...items], pagination: {...} }
+      // Example: { success: true, data: [...items], pagination: {...}, filters: {...} }
       if (data.pagination) {
-        return { data: data.data, pagination: data.pagination };
+        return { data: data.data, pagination: data.pagination, ...(data.filters && { filters: data.filters }) };
       }
       return data.data; // Standard object/array unpacking
     }

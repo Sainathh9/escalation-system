@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { apiFetch } from "../api/api";
 import { useAuth } from "../context/AuthContext";
+import PortalIncidentForm from "../pages/Dashboard/user-panels/PortalIncidentForm";
 import {
   X,
   Type,
@@ -25,6 +26,32 @@ export default function CreateTicketModal({ onClose }) {
   const [users, setUsers] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+
+  // Conditionally render the custom guided wizard for End Users
+  if (user?.role === "User") {
+    return (
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal" onClick={(e) => e.stopPropagation()} style={{ padding: "var(--space-6)", position: "relative" }}>
+          <div style={{ position: "absolute", top: "20px", right: "20px", zIndex: 10 }}>
+            <button
+              className="modal-close"
+              onClick={onClose}
+              id="modal-close-btn"
+              title="Close modal"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <PortalIncidentForm
+            onSuccess={() => {
+              queryClient.invalidateQueries({ queryKey: ["user-dashboard-tickets", user.id] });
+              onClose();
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
 
   useEffect(() => {
     const fetchUsers = async () => {

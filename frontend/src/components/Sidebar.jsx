@@ -6,7 +6,8 @@ import {
   ChevronRight,
   Settings,
   Users,
-  Briefcase
+  Briefcase,
+  FileText
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 
@@ -45,6 +46,11 @@ export default function Sidebar() {
       label: "Metrics & Users",
       path: "/users",
       icon: <Users size={16} />,
+    });
+    navItems.push({
+      label: "Audit Logs",
+      path: "/admin/audit-logs",
+      icon: <FileText size={16} />,
     });
     navItems.push({
       label: "Settings",

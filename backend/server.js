@@ -5,6 +5,7 @@ import { initSocket } from './services/socketService.js';
 import ticketRoutes from './routes/ticketRoutes.js';
 import authRoutes from './routes/authRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import adminRoutes from './routes/adminRoutes.js';
 import cors from 'cors';
 import './workers/slaWorker.js'; // BullMQ SLA escalation worker (side-effect: registers & starts)
 import errorHandler from './middleware/errorHandler.js';
@@ -41,6 +42,7 @@ app.get("/",(req,res)=>{
 app.use('/api/tickets', ticketRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/admin', adminRoutes);
 
 // 4. Centralized Error Handler (must be AFTER routes)
 app.use(errorHandler);

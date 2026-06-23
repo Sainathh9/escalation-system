@@ -551,6 +551,9 @@ export const getMetrics = async (req, res, next) => {
     const resolved = await pool.query(
       "SELECT COUNT(*) FROM tickets WHERE status = 'Resolved'",
     );
+    const closed = await pool.query(
+      "SELECT COUNT(*) FROM tickets WHERE status = 'Closed'",
+    );
 
     // Critical severity count
     const critical = await pool.query(
@@ -601,15 +604,82 @@ export const getMetrics = async (req, res, next) => {
       ORDER BY date ASC
     `);
 
-    // Recent activity (last 10 logs)
+    // Recent activity (last 15 logs)
     const recentActivity = await pool.query(`
       SELECT tl.*, t.title as ticket_title, u.name as performer_name
       FROM ticket_logs tl
       LEFT JOIN tickets t ON tl.ticket_id = t.id
       LEFT JOIN users u ON tl.performed_by = u.id
       ORDER BY tl.created_at DESC
+      LIMIT 15
+    `);
+
+    // ── Admin-Enhanced Metrics ────────────────────────────────────
+
+    // SLA breached tickets (overdue, still active)
+    const slaBreaches = await pool.query(`
+      SELECT t.id, t.title, t.severity, t.priority, t.status, t.sla_deadline,
+             t.escalation_level, t.assigned_to, t.created_at,
+             u.name as assigned_to_name,
+             EXTRACT(EPOCH FROM (NOW() - t.sla_deadline)) as overdue_seconds
+      FROM tickets t
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.sla_deadline < NOW()
+        AND t.status NOT IN ('Resolved', 'Closed')
+      ORDER BY t.sla_deadline ASC
+      LIMIT 20
+    `);
+
+    // Approaching SLA (within 1 hour, not yet breached)
+    const approachingSla = await pool.query(`
+      SELECT t.id, t.title, t.severity, t.priority, t.status, t.sla_deadline,
+             t.escalation_level, t.assigned_to,
+             u.name as assigned_to_name,
+             EXTRACT(EPOCH FROM (t.sla_deadline - NOW())) as remaining_seconds
+      FROM tickets t
+      LEFT JOIN users u ON t.assigned_to = u.id
+      WHERE t.sla_deadline > NOW()
+        AND t.sla_deadline <= NOW() + INTERVAL '1 hour'
+        AND t.status NOT IN ('Resolved', 'Closed')
+      ORDER BY t.sla_deadline ASC
       LIMIT 10
     `);
+
+    // Technician workload summary
+    const techWorkload = await pool.query(`
+      SELECT 
+        u.id, u.name, u.email,
+        COUNT(t.id) FILTER (WHERE t.status NOT IN ('Resolved', 'Closed')) as open_tickets,
+        COUNT(t.id) FILTER (WHERE t.status IN ('In Progress', 'In-Progress')) as in_progress,
+        COUNT(t.id) FILTER (WHERE t.status = 'Resolved' AND t.updated_at >= NOW() - INTERVAL '24 hours') as resolved_today
+      FROM users u
+      LEFT JOIN tickets t ON t.assigned_to = u.id
+      WHERE u.role = 'Technician'
+      GROUP BY u.id, u.name, u.email
+      ORDER BY open_tickets DESC
+    `);
+
+    // Category breakdown
+    const categoryBreakdown = await pool.query(`
+      SELECT category, COUNT(*) as count
+      FROM tickets
+      GROUP BY category
+      ORDER BY count DESC
+    `);
+
+    // Escalation level stats
+    const escalationStats = await pool.query(`
+      SELECT escalation_level, COUNT(*) as count
+      FROM tickets
+      WHERE status NOT IN ('Resolved', 'Closed')
+      GROUP BY escalation_level
+      ORDER BY escalation_level ASC
+    `);
+
+    // Unassigned ticket count
+    const unassigned = await pool.query(
+      "SELECT COUNT(*) FROM tickets WHERE assigned_to IS NULL AND status NOT IN ('Resolved','Closed')"
+    );
 
     res.status(200).json({
       success: true,
@@ -619,13 +689,21 @@ export const getMetrics = async (req, res, next) => {
           open: parseInt(open.rows[0].count),
           in_progress: parseInt(inProgress.rows[0].count),
           resolved: parseInt(resolved.rows[0].count),
+          closed: parseInt(closed.rows[0].count),
         },
         critical: parseInt(critical.rows[0].count),
         overdue: parseInt(overdue.rows[0].count),
+        unassigned: parseInt(unassigned.rows[0].count),
         avg_resolution_hours: parseFloat(avgResolution.rows[0].avg_hours),
         severity,
         incidents_over_time: incidentsOverTime.rows,
         recent_activity: recentActivity.rows,
+        // Admin-enhanced fields
+        sla_breaches: slaBreaches.rows,
+        approaching_sla: approachingSla.rows,
+        technician_workload: techWorkload.rows,
+        category_breakdown: categoryBreakdown.rows,
+        escalation_stats: escalationStats.rows,
       },
     });
   } catch (err) {
@@ -658,6 +736,100 @@ export const getUsers = async (req, res, next) => {
       "SELECT id, name, email, role FROM users ORDER BY name ASC",
     );
     res.status(200).json({ success: true, data: result.rows });
+  } catch (err) {
+    next(err);
+  }
+};
+
+// ─── GET /api/tickets/my-stats ───────────────────────────────
+// Lightweight personal stats for the authenticated technician.
+export const getTechnicianStats = async (req, res, next) => {
+  try {
+    const userId = req.user.id;
+
+    // Active tickets (Open + In-Progress)
+    const active = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1 AND status NOT IN ('Resolved', 'Closed')`,
+      [userId]
+    );
+
+    // SLA at risk (within 2 hours of breach)
+    const slaAtRisk = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1
+         AND status NOT IN ('Resolved', 'Closed')
+         AND sla_deadline > NOW()
+         AND sla_deadline <= NOW() + INTERVAL '2 hours'`,
+      [userId]
+    );
+
+    // SLA breached
+    const slaBreached = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1
+         AND status NOT IN ('Resolved', 'Closed')
+         AND sla_deadline < NOW()`,
+      [userId]
+    );
+
+    // Resolved today
+    const resolvedToday = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1
+         AND status = 'Resolved'
+         AND updated_at >= CURRENT_DATE`,
+      [userId]
+    );
+
+    // Resolved this week
+    const resolvedWeek = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1
+         AND status = 'Resolved'
+         AND updated_at >= DATE_TRUNC('week', CURRENT_DATE)`,
+      [userId]
+    );
+
+    // Avg resolution time (hours)
+    const avgRes = await pool.query(
+      `SELECT COALESCE(
+        ROUND(AVG(EXTRACT(EPOCH FROM (updated_at - created_at)) / 3600)::numeric, 1),
+        0
+      ) as avg_hours
+      FROM tickets
+      WHERE assigned_to = $1 AND status IN ('Resolved', 'Closed')`,
+      [userId]
+    );
+
+    // Escalated tickets (level >= 2)
+    const escalated = await pool.query(
+      `SELECT COUNT(*) FROM tickets
+       WHERE assigned_to = $1
+         AND status NOT IN ('Resolved', 'Closed')
+         AND escalation_level >= 2`,
+      [userId]
+    );
+
+    // Total ever assigned
+    const totalAssigned = await pool.query(
+      `SELECT COUNT(*) FROM tickets WHERE assigned_to = $1`,
+      [userId]
+    );
+
+    res.status(200).json({
+      success: true,
+      data: {
+        active_count: parseInt(active.rows[0].count),
+        sla_at_risk: parseInt(slaAtRisk.rows[0].count),
+        sla_breached: parseInt(slaBreached.rows[0].count),
+        resolved_today: parseInt(resolvedToday.rows[0].count),
+        resolved_this_week: parseInt(resolvedWeek.rows[0].count),
+        avg_resolution_hours: parseFloat(avgRes.rows[0].avg_hours),
+        escalated_count: parseInt(escalated.rows[0].count),
+        total_assigned: parseInt(totalAssigned.rows[0].count),
+      },
+    });
   } catch (err) {
     next(err);
   }
