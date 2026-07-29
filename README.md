@@ -4,7 +4,7 @@
 
 ### Enterprise Incident Escalation & Operations Management System
 
-*Inspired by ServiceNow · Built from scratch with Node.js, React, PostgreSQL, Redis & Socket.IO*
+*Built with Node.js, React, PostgreSQL, Redis & Socket.IO*
 
 [![Node.js](https://img.shields.io/badge/Node.js-20-339933?style=for-the-badge&logo=nodedotjs&logoColor=white)](https://nodejs.org/)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
