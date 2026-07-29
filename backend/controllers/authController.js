@@ -71,9 +71,13 @@ export const loginUser = async (req, res, next) => {
     }
 
     // create token
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      throw new Error('JWT_SECRET environment variable is not set. Server misconfiguration.');
+    }
     const token = jwt.sign(
       { id: user.id, role: user.role },
-      process.env.JWT_SECRET || "default_secret",
+      jwtSecret,
       { expiresIn: "1h" },
     );
 

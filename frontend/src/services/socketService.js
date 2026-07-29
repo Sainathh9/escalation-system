@@ -1,6 +1,9 @@
 import { io } from 'socket.io-client';
 
-const SOCKET_URL = 'http://localhost:5001';
+// In Docker: VITE_SOCKET_URL="" (empty string) — Socket.IO connects to same origin
+// and Nginx proxies /socket.io/ to the backend container.
+// In local dev: falls back to the direct backend address.
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL ?? 'http://localhost:5001';
 let socket = null;
 
 /**

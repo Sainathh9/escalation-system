@@ -6,7 +6,7 @@ export default function UsersList() {
       <div className="dash-header">
         <div>
           <h1 className="page-title">Users & Metrics</h1>
-          <p className="page-subtitle">Manage system users and view detailed metrics (Placeholder)</p>
+          <p className="page-subtitle">Manage system users and view detailed metrics</p>
         </div>
       </div>
       

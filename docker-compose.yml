@@ -1,0 +1,87 @@
+services:
+  # ── PostgreSQL Database ──────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: incidentflow_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      # Persistent data volume — survives container restarts
+      - postgres_data:/var/lib/postgresql/data
+      # Auto-run init.sql on first boot to create all tables
+      - ./backend/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # ── Redis (BullMQ Job Queue) ─────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: incidentflow_redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # ── Backend API Server ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentflow_backend
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Override localhost DB/Redis addresses with Docker service names
+      DB_HOST: postgres
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      FRONTEND_URL: http://localhost
+    ports:
+      - "5001:5001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Frontend (React SPA served by Nginx) ────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        # Nginx handles /api and /socket.io proxy internally
+        # so the browser uses relative paths (no explicit host needed)
+        VITE_API_BASE_URL: /api
+        VITE_SOCKET_URL: ""
+    container_name: incidentflow_frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+
+# ── Named Volumes ────────────────────────────────────────────
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

@@ -3,8 +3,7 @@ const { Pool } = pkg;
 import dotenv from 'dotenv';
 
 dotenv.config();
-console.log("DB:", process.env.DB_NAME);
-console.log("Connected DB User:", process.env.DB_USER);
+console.log(`[DB] Pool initializing → host: ${process.env.DB_HOST || 'localhost'}:${process.env.DB_PORT || 5432}`);
 const pool = new Pool({
   user: process.env.DB_USER,
   host: process.env.DB_HOST,
