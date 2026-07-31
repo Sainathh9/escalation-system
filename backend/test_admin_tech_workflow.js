@@ -3,11 +3,11 @@
 async function runTest() {
   const baseUrl = 'http://localhost:5001/api';
 
-  console.log('1. Logging in as Admin (hi@gm.com / 1234)...');
+  console.log('1. Logging in as Admin (admin@test.com / 1234)...');
   const adminLoginRes = await fetch(`${baseUrl}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email: 'hi@gm.com', password: '1234' })
+    body: JSON.stringify({ email: 'admin@test.com', password: '1234' })
   });
   const adminData = await adminLoginRes.json();
   if (!adminData.success) {

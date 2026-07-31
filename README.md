@@ -221,7 +221,7 @@ Open **http://localhost** and log in:
 
 | Role | Email | Password |
 |:---|:---|:---|
-| Admin | `hi@gm.com` | `1234` |
+| Admin | `admin@test.com` | `1234` |
 | Technician | `tech@test.com` | `1234` |
 
 ### 💻 Local Development

@@ -9,9 +9,9 @@ async function seedData() {
     const saltRounds = 10;
     const passwordHash = await bcrypt.hash('1234', saltRounds);
 
-    // 2. Insert or update Admin user 'hi@gm.com'
+    // 2. Insert or update Admin user 'admin@test.com'
     let adminId = null;
-    const adminCheck = await pool.query("SELECT id FROM users WHERE email = 'hi@gm.com'");
+    const adminCheck = await pool.query("SELECT id FROM users WHERE email = 'admin@test.com'");
     if (adminCheck.rows.length > 0) {
       adminId = adminCheck.rows[0].id;
       await pool.query(
@@ -21,7 +21,7 @@ async function seedData() {
       console.log(`Updated existing Admin (ID: ${adminId})`);
     } else {
       const adminInsert = await pool.query(
-        "INSERT INTO users (name, email, password_hash, role) VALUES ('System Admin', 'hi@gm.com', $1, 'Admin') RETURNING id",
+        "INSERT INTO users (name, email, password_hash, role) VALUES ('System Admin', 'admin@test.com', $1, 'Admin') RETURNING id",
         [passwordHash]
       );
       adminId = adminInsert.rows[0].id;
