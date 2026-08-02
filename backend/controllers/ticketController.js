@@ -9,11 +9,14 @@ import {
 import slaQueue from "../queues/slaQueue.js";
 import { emitToTicket, emitToRole, emitToUser } from "../services/socketService.js";
 
+
+
+
 export const createTicket = async (req, res, next) => {
   try {
     const { title, description, severity, category, priority } = req.body;
 
-    // 🔒 Strict Input Validation
+    //  Strict Input Validation
     const errors = [];
 
     if (!title || typeof title !== "string" || title.trim().length === 0) {
@@ -21,6 +24,7 @@ export const createTicket = async (req, res, next) => {
     }
 
     const allowedSeverities = ["Low", "Medium", "High", "Critical"];
+    
     if (!allowedSeverities.includes(severity)) {
       errors.push(`Severity must be one of: ${allowedSeverities.join(", ")}`);
     }
@@ -628,7 +632,7 @@ export const getMetrics = async (req, res, next) => {
         AND t.status NOT IN ('Resolved', 'Closed')
       ORDER BY t.sla_deadline ASC
       LIMIT 20
-    `);
+    `); //EPOCH---EPOCH in PostgreSQL converts a timestamp or interval into the number of seconds relative to a reference point.
 
     // Approaching SLA (within 1 hour, not yet breached)
     const approachingSla = await pool.query(`

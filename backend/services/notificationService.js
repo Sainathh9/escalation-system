@@ -1,11 +1,4 @@
 import pool from '../config/db.js';
-import { 
-  sendTicketCreatedEmail,
-  sendTicketAssignedEmail,
-  sendTicketEscalatedEmail,
-  sendTicketResolvedEmail,
-  sendGenericNotificationEmail
-} from './emailService.js';
 
 // ─── Core: insert one notification row ───────────────────────
 export const createNotification = async ({ userId, ticketId, type, message }) => {
@@ -22,38 +15,9 @@ export const createNotification = async ({ userId, ticketId, type, message }) =>
   }
 };
 
-// ─── Core: create in-app notif + send email to a user ────────
-const notifyUser = async ({ user, ticket, type, message, escalationLevel }) => {
-  // 1. In-app notification (always fires)
+// ─── Core: create in-app notification for a user ─────────────
+const notifyUser = async ({ user, ticket, type, message }) => {
   await createNotification({ userId: user.id, ticketId: ticket.id, type, message });
-
-  // 2. Email notification
-  switch (type) {
-    case 'TICKET_CREATED':
-      await sendTicketCreatedEmail(user.email, user.name || user.email, ticket);
-      break;
-    case 'TICKET_ASSIGNED':
-    case 'TICKET_REASSIGNED':
-      await sendTicketAssignedEmail(user.email, user.name || user.email, ticket);
-      break;
-    case 'TICKET_ESCALATED':
-      await sendTicketEscalatedEmail(user.email, user.name || user.email, ticket, escalationLevel);
-      break;
-    case 'TICKET_RESOLVED':
-    case 'TICKET_CLOSED':
-      await sendTicketResolvedEmail(user.email, user.name || user.email, ticket);
-      break;
-    default:
-      await sendGenericNotificationEmail(
-        user.email, 
-        user.name || user.email, 
-        `[IncidentOps] Notification on ticket #${ticket.id}`, 
-        'Ticket Update', 
-        message, 
-        ticket
-      );
-      break;
-  }
 };
 
 // ─── Helper: fetch all admin users ────────────────────────────

@@ -16,6 +16,7 @@ import connection from "../config/redis.js";
 import { getIO } from "../services/socketService.js";
 
 // ─── GET /api/admin/audit-logs ───────────────────────────────
+//Fetch audit logs with filtering, searching, sorting, and pagination.
 export const getAuditLogs = async (req, res, next) => {
   try {
     const {
@@ -84,8 +85,8 @@ export const getAuditLogs = async (req, res, next) => {
       LEFT JOIN tickets t ON tl.ticket_id = t.id
       LEFT JOIN users u ON tl.performed_by = u.id
       ${whereClause}
-    `;
-    const countResult = await pool.query(countQuery, values);
+    `; 
+    const countResult = await pool.query(countQuery, values); //returns something like  { rows: [ "count":"3"] , ...}
     const total = parseInt(countResult.rows[0].count);
 
     // Paginated data
@@ -107,7 +108,7 @@ export const getAuditLogs = async (req, res, next) => {
       ${whereClause}
       ORDER BY tl.created_at DESC
       LIMIT $${index} OFFSET $${index + 1}
-    `;
+    `; //this executes whenever you click on next in list of pages
 
     const dataResult = await pool.query(dataQuery, [
       ...values,
@@ -284,7 +285,7 @@ export const getTechnicianWorkload = async (req, res, next) => {
       WHERE u.role = 'Technician'
       GROUP BY u.id, u.name, u.email
       ORDER BY open_tickets DESC
-    `);
+    `); //COALESCE MEANING: "Calculate the average resolution time (in hours) for resolved or closed tickets, round it to one decimal place, and if there are no resolved tickets, return 0."
 
     // Check online status via Socket.IO rooms
     let onlineUserIds = new Set();
@@ -309,6 +310,12 @@ export const getTechnicianWorkload = async (req, res, next) => {
       sla_breached: parseInt(tech.sla_breached),
       is_online: onlineUserIds.has(tech.id),
     }));
+    // Why use ...tech and then redefine some fields?
+// - ...tech copies ALL properties from the current result row (tech).
+// - If a property is written again later (e.g. open_tickets), it OVERRIDES the copied value.
+// - This does NOT create duplicate keys; JavaScript objects can't have duplicate property names.
+// - We override PostgreSQL string values ("5") with numbers (5) using parseInt/parseFloat,
+//   and add new computed fields like is_online.
 
     res.status(200).json({
       success: true,
