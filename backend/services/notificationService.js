@@ -159,3 +159,26 @@ export const notifyNewComment = async (ticket, authorId, authorName) => {
     )
   );
 };
+
+/*This syntax is called object destructuring in function parameters.
+
+Instead of writing:
+
+export const createNotification = async (data) => {
+    const userId = data.userId;
+    const ticketId = data.ticketId;
+    const type = data.type;
+    const message = data.message;
+}
+
+JavaScript lets you write:
+
+export const createNotification = async ({
+    userId,
+    ticketId,
+    type,
+    message
+}) => {
+}
+
+It does the destructuring automatically.*/

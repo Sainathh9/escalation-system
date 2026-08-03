@@ -40,7 +40,7 @@ BullMQ Job scheduled (delay = SLA window)
 SLA Worker fires ──► Escalation Level++ ──► New tighter SLA deadline
                  ──► Audit log written
                  ──► Socket.IO event emitted (ticket:escalated)
-                 ──► Admin notified (in-app + email)
+                 ──► Admin notified (in-app)
                  ──► Next BullMQ job scheduled (if level < 3)
 ```
 
@@ -99,7 +99,6 @@ The full stack (PostgreSQL, Redis, Node.js API, React/Nginx) runs via a single `
 | **Frontend** | React 19 + Vite 8 | Concurrent rendering; Vite's HMR for fast DX |
 | **State** | TanStack React Query v5 | Smart caching, background refetch, optimistic updates |
 | **Charts** | Recharts + Chart.js | Rich analytics visualizations on admin dashboard |
-| **Email** | Nodemailer | Async email dispatch for critical escalation alerts |
 | **Containerization** | Docker + Compose + Nginx | One-command full-stack deployment; Nginx as SPA + reverse proxy |
 
 ---
@@ -257,7 +256,7 @@ incident-escalation-system/
 │   ├── middleware/     JWT auth, role allowlist, error handler
 │   ├── queues/         BullMQ sla-escalation queue
 │   ├── routes/         /tickets, /auth, /admin, /notifications
-│   ├── services/       Socket.IO engine, Nodemailer, notification service
+│   ├── services/       Socket.IO engine, in-app notification service
 │   ├── utils/          SLA deadline calculator
 │   ├── workers/        slaWorker.js — the escalation engine
 │   ├── init.sql        Auto-creates all tables on Docker first boot
