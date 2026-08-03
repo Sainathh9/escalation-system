@@ -88,20 +88,20 @@ export const initSocket = (server) => {
     /**
      * Client requests to unsubscribe from updates for a specific ticket.
      */
-    socket.on('ticket:leave', ({ ticketId }) => {
+    socket.on('ticket:leave', ({ ticketId }) => { //frontend sends something like ticket leave
       if (!ticketId) return;
-      socket.leave(`ticket:${ticketId}`);
-      console.log(`📤 Socket ${socket.id} (User: ${userId}) left room: ticket:${ticketId}`);
-      socket.emit('ticket:left', { ticketId });
+      socket.leave(`ticket:${ticketId}`); //leaves that socket room
+      console.log(`Socket ${socket.id} (User: ${userId}) left room: ticket:${ticketId}`);
+      socket.emit('ticket:left', { ticketId }); //sends back msg to frontend that you left
     });
 
     // 4️⃣ Connection teardown
     socket.on('disconnect', (reason) => {
-      console.log(`❌ Client disconnected: Socket ID = ${socket.id}, User = ${name}. Reason = ${reason}`);
+      console.log(`Client disconnected: Socket ID = ${socket.id}, User = ${name}. Reason = ${reason}`);
     });
   });
 
-  console.log('🚀 Socket.IO Server successfully integrated & listening');
+  console.log('Socket.IO Server successfully integrated & listening');
   return io;
 };
 

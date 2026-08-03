@@ -231,8 +231,6 @@ Open **http://localhost** and log in:
 # Backend
 cd backend && npm install
 cp .env.example .env          # fill in DB credentials
-node migrate.js               # create tables
-node migrateNotifications.js  # create notifications table
 node seed_tech_data.js        # seed demo data
 npm run dev                   # starts on :5001
 
